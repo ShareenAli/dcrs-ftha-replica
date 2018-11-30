@@ -21,10 +21,10 @@ public class InseServer {
         }
 
         CourseOperations courseOperations = new CourseOperations();
-        courseOperations.initializeValues("INSE", "Inse Server");
+        courseOperations.initializeValues("INSE", logs);
 
-        WsThread wsThread = new WsThread(courseOperations, "http://localhost:8202/ws/inseserver");
-        wsThread.start();
+        UDPServerThread UDPServerThread = new UDPServerThread(courseOperations, 8006, "INSE", logs);
+        UDPServerThread.start();
 
         try {
             DatagramSocket socket = new DatagramSocket(8003);
@@ -33,7 +33,7 @@ public class InseServer {
 
             while (true) {
                 DatagramPacket request = new DatagramPacket(buffer, buffer.length);
-                System.out.println("UDP server running on: " + (8003));
+                System.out.println("UDP INSE server running on: " + (8003));
                 socket.receive(request);
 
                 UdpOperations udpOp = new UdpOperations(socket, request, courseOperations);

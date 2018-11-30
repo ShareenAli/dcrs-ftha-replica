@@ -4,7 +4,6 @@ import schema.CourseData;
 import schema.UdpBody;
 import schema.UdpPacket;
 
-import javax.jws.WebService;
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -15,18 +14,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-@WebService(endpointInterface = "course.CourseInterface")
-public class CourseOperations implements CourseInterface {
+public class CourseOperations {
     private Logger logs;
-
     private HashMap<String, HashMap<String, CourseData>> courseDetails = new HashMap<>();
     private HashMap<String, HashMap<String, List<String>>> studentTermWiseDetails = new HashMap<>();
-    private HashMap<String, Integer> listCourse = new HashMap<>();
     private String advisorID;
     private int CompPort = 8001, SoenPort = 8002, InsePort = 8003;
 
-    public void initializeValues(String deptName, String logs) {
-        this.logs = Logger.getLogger(logs);
+    public void initializeValues(String deptName, Logger logs) {
+        this.logs = logs;
         advisorID = deptName.toUpperCase() + "A1001";
         for (int i = 1; i < 6; i++) {
             HashMap<String, List<String>> studentCourseDetails = new HashMap<>();
@@ -35,47 +31,91 @@ public class CourseOperations implements CourseInterface {
         }
     }
 
-    @Override
-    public boolean validateStudent(String clientId) {
+    public String selectOperation(String operationName, String contents[]) {
+        String result = "";
+        String studentDepartmentName, courseDepartmentName, advisorDepartmentName;
+        boolean udpCall;
+        switch (operationName.toLowerCase()){
+            case "addcourse" :
+                result = addCourse(contents[2], contents[4], "leCourse",contents[3], Integer.parseInt(contents[5]));
+                break;
+            case "removecourse" :
+                advisorDepartmentName = contents[2].substring(0,4);
+                result = deleteCourse(contents[2], contents[4], contents[3], advisorDepartmentName);
+                break;
+            case "enrollcourse" :
+                studentDepartmentName = contents[2].substring(0,4);
+                courseDepartmentName = contents[4].substring(0,4);
+
+                udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
+                result  = enrollCourse(contents[2], contents[3], studentDepartmentName, contents[4], udpCall, false, true);
+                break;
+            case  "dropcourse" :
+                studentDepartmentName = contents[2].substring(0,4);
+                courseDepartmentName = contents[4].substring(0,4);
+
+                udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
+                result = dropCourse(contents[2], contents[4], contents[3], studentDepartmentName, udpCall);
+                break;
+            case "getclassschedule" :
+                result = getClassSchedule(contents[2]);
+                break;
+            case "listcourseavailability" :
+                advisorDepartmentName= contents[2].substring(0, 4);
+                result = listCourseAvailability(contents[2], contents[3], advisorDepartmentName);
+                break;
+            case "swapcourse" :
+                studentDepartmentName = contents[2].substring(0,4);
+                result = swapCourse(contents[2], contents[4], contents[5], contents[3], studentDepartmentName);
+                break;
+        }
+
+        return result;
+    }
+
+    public String validateStudent(String clientId) {
         for (Map.Entry<String, HashMap<String, List<String>>> studentIDlist : this.studentTermWiseDetails.entrySet()) {
             String studentID = studentIDlist.getKey();
             if (studentID.equalsIgnoreCase(clientId)) {
-                return true;
+                return "true";
             }
         }
-        return false;
+        return "false";
     }
 
-    @Override
-    public boolean validateAdvisor(String clientId) {
-        return advisorID.equalsIgnoreCase(clientId);
+    public String validateAdvisor(String clientId) {
+        if (advisorID.equalsIgnoreCase(clientId)){
+            return "true";
+        }
+        return "false";
     }
 
-    @Override
-    public boolean addCourse(String id, String courseId, String courseName, String term, int seatsAvailable) {
+    public String addCourse(String advisorID, String courseID, String courseName, String term, int courseCapacity) {
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = courseDetails.get(term);
-            if (termMap.containsKey(courseId)) {
+            if (termMap.containsKey(courseID)) {
+                logs.warning("This course ID already exists for this term. Please try again!");
                 System.out.println("This course ID already exists for this term. Please try again!");
-                return false;
+                return "false";
             } else {
-                CourseData newCourseData = new CourseData(courseId, courseName, term, seatsAvailable);
-                termMap.put(courseId, newCourseData);
+                CourseData newCourseData = new CourseData(courseID, courseName, term, courseCapacity);
+                termMap.put(courseID, newCourseData);
                 courseDetails.put(term, termMap);
                 showCourses();
-                return true;
+                logs.info(advisorID + " added course " + courseID + " successfully!");
+                return "true";
             }
         } else {
             HashMap<String, CourseData> courseMap = new HashMap<>();
-            CourseData courseData = new CourseData(courseId, courseName, term, seatsAvailable);
+            CourseData courseData = new CourseData(courseID, courseName, term, courseCapacity);
             courseMap.put(courseData.getCourse_id(), courseData);
             courseDetails.put(courseData.getTerm(), courseMap);
             showCourses();
-            return true;
+            logs.info("Term added to HashMap and course added Successfully by " + advisorID);
+            return "true";
         }
     }
 
-    @Override
     public void showCourses() {
         System.out.println("\n New Operation : \n");
         for (Map.Entry<String, HashMap<String, CourseData>> term : this.courseDetails.entrySet()) {
@@ -83,6 +123,11 @@ public class CourseOperations implements CourseInterface {
             for (Map.Entry<String, CourseData> course : term.getValue().entrySet()) {
                 String courseId = course.getKey();
                 CourseData courseDataDetails = course.getValue();
+                logs.info("Term : " + termName + "\n Course ID: " + courseId +
+                        "\n Course Name : " + courseDataDetails.getCourse_name() +
+                        "\n Total Capacity : " + courseDataDetails.getCourse_capacity() +
+                        "\n Seats Available : " + courseDataDetails.getSeats_available() +
+                        "\n Course Added Successfully!");
                 System.out.println("Term : " + termName + "\n Course ID: " + courseId +
                         "\n Course Name : " + courseDataDetails.getCourse_name() +
                         "\n Total Capacity : " + courseDataDetails.getCourse_capacity() +
@@ -92,18 +137,16 @@ public class CourseOperations implements CourseInterface {
         }
     }
 
-    @Override
-    public boolean deleteCourse(String id, String courseId, String term, String department) {
+    public String deleteCourse(String advisorID, String courseId, String term, String department) {
         int[] ports = new int[2];
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = this.courseDetails.get(term);
             if (termMap.containsKey(courseId)) {
                 termMap.remove(courseId);
                 courseDetails.put(term, termMap);
-
                 System.out.println(term + " " + termMap.get(courseId));
 
-                for (Map.Entry<String, HashMap<String, List<String>>> studentTermCourseDetails : this.studentTermWiseDetails.entrySet()) {
+                 for (Map.Entry<String, HashMap<String, List<String>>> studentTermCourseDetails : this.studentTermWiseDetails.entrySet()) {
                     String studentId = studentTermCourseDetails.getKey();
                     HashMap<String, List<String>> termCourses = studentTermCourseDetails.getValue();
                     for (Map.Entry<String, List<String>> termCoursesList : termCourses.entrySet()) {
@@ -116,10 +159,10 @@ public class CourseOperations implements CourseInterface {
                 }
                 deleteCourseStudentList(courseId);
 
-                if (id.substring(0, 4).equalsIgnoreCase("COMP")) {
+                if (courseId.substring(0, 4).equalsIgnoreCase("COMP")) {
                     ports[0] = SoenPort;
                     ports[1] = InsePort;
-                } else if (id.substring(0, 4).equalsIgnoreCase("SOEN")) {
+                } else if (courseId.substring(0, 4).equalsIgnoreCase("SOEN")) {
                     ports[0] = CompPort;
                     ports[1] = InsePort;
                 } else {
@@ -127,36 +170,42 @@ public class CourseOperations implements CourseInterface {
                     ports[1] = SoenPort;
                 }
 
-                UdpBody udpBody = new UdpBody(id, term, courseId, department);
+                UdpBody udpBody = new UdpBody(courseId, term, courseId, department);
                 UdpPacket udpPacket = new UdpPacket(4, udpBody);
                 System.out.println("OPERATION1: " + udpPacket.getOperation());
                 String responseObj = (String) udpPacketInfo(udpPacket, ports[0]);
                 System.out.println("RESPONSE1: " + responseObj);
 
-                UdpBody udpBody2 = new UdpBody(id, term, courseId, department);
+                UdpBody udpBody2 = new UdpBody(courseId, term, courseId, department);
                 UdpPacket udpPacket2 = new UdpPacket(4, udpBody2);
                 System.out.println("OPERATION2: " + udpPacket.getOperation());
                 String responseObj2 = (String) udpPacketInfo(udpPacket2, ports[1]);
                 System.out.println("RESPONSE2: " + responseObj2);
-
-                return true;
+                if (responseObj == "true" && responseObj2 == "true"){
+                    logs.info(advisorID + " has deleted " + courseId + "course successfully!");
+                    return "true";
+                } else {
+                    return "false";
+                }
             } else {
+                logs.warning("There is no course with " + courseId + " CourseData ID.");
                 System.out.println("There is no course with " + courseId + " CourseData ID.");
-                return false;
+                return "false";
             }
         } else {
+            logs.warning("Please enter valid term name. Try Again!");
             System.out.println("Please enter valid term name. Try Again!");
         }
-        return false;
+        return "false";
     }
 
-    @Override
-    public String enrollCourse(String id, String term, String department, String courseId, boolean udpCall, boolean swapOperation, boolean checkCrossEnrollLimit) {
+    synchronized public String enrollCourse(String id, String term, String department, String courseId, boolean udpCall, boolean swapOperation, boolean checkCrossEnrollLimit) {
         HashMap<String, CourseData> termMap = courseDetails.get(term);
         HashMap<String, List<String>> studentCourseDetails = studentTermWiseDetails.get(id);
         int port, enrollLimit = 0;
 
         if (udpCall) {
+            logs.info("UDP details : " + "\n" + id + "\n" + term + "\n" + department + "\n" + courseId);
             System.out.println("UDP details : " + "\n" + id + "\n" + term + "\n" + department + "\n" + courseId);
 
             if (studentCourseDetails.containsKey(term)) {
@@ -251,7 +300,6 @@ public class CourseOperations implements CourseInterface {
         }
     }
 
-    @Override
     public String displayCourses(String term) {
         String message = "";
         HashMap<String, CourseData> termCourses = this.courseDetails.get(term);
@@ -262,8 +310,7 @@ public class CourseOperations implements CourseInterface {
         return message;
     }
 
-    @Override
-    public boolean dropCourse(String studentId, String courseId, String term, String department, boolean udpCall) {
+    public String dropCourse(String studentId, String courseId, String term, String department, boolean udpCall) {
         int port;
         if (udpCall) {
             System.out.println("dropCourse = " + courseId);
@@ -291,13 +338,13 @@ public class CourseOperations implements CourseInterface {
                         studentTermWiseDetails.put(studentId, studentTermCourseDetails);
                         System.out.println(courseId + " course has been dropped by " + studentId + " student for " + term + " term.");
                         displayStudentDetails();
-                        return true;
+                        return "true";
                     } else {
                         System.out.println("Couldn't find the course");
-                        return false;
+                        return "false";
                     }
                 } else {
-                    return false;
+                    return "false";
                 }
             } else {
                 System.out.println("Course can only be of the pattern COMP####/SOEN####/INSE####.");
@@ -319,10 +366,10 @@ public class CourseOperations implements CourseInterface {
                         studentTermWiseDetails.put(studentId, studentTermCourseDetails);
                         System.out.println(courseId + " course has been dropped by " + studentId + " student for " + term + " term.");
                         displayStudentDetails();
-                        return true;
+                        return "true";
                     } else {
                         System.out.println("Couldn't find the course");
-                        return false;
+                        return "false";
                     }
                 } else {
                     System.out.println("There is no course with " + courseId + " CourseData ID.");
@@ -332,10 +379,9 @@ public class CourseOperations implements CourseInterface {
                 System.out.println("Please enter valid term name. Try Again!");
             }
         }
-        return false;
+        return "false";
     }
 
-    @Override
     public String getClassSchedule(String studentId) {
         String message = "";
         HashMap<String, List<String>> studentTermCourseDetails = this.studentTermWiseDetails.get(studentId);
@@ -350,8 +396,7 @@ public class CourseOperations implements CourseInterface {
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    public String listCourseAvailability(String id, String term, String department, boolean udpCall) {
+    public String listCourseAvailability(String id, String term, String department) {
         HashMap<String, Integer> listCourse = new HashMap<>();
         System.out.println(term);
         HashMap<String, CourseData> termMap = courseDetails.get(term);
@@ -404,7 +449,6 @@ public class CourseOperations implements CourseInterface {
         return this.listCourseAvailabilityString(listCourse, term);
     }
 
-    @Override
     public String swapCourse(String id, String oldCourseId, String newCourseId, String term, String department) {
         System.out.println("Swapping course");
         String newCourseIdDept = newCourseId.substring(0, 4);
@@ -427,11 +471,11 @@ public class CourseOperations implements CourseInterface {
 
             if (result.equalsIgnoreCase("enrolledSuccessfully")) {
                 boolean udp = !oldCourseId.toUpperCase().startsWith(department.toUpperCase());
-                boolean dropCourseResult = dropCourse(id, oldCourseId, term, department,udp);
-                if (dropCourseResult)
+                String dropCourseResult = dropCourse(id, oldCourseId, term, department,udp);
+                if (dropCourseResult.equalsIgnoreCase("true"))
                     return "Course Swapped Successfully";
                 else {
-                    boolean dropAgain = dropCourse(id, newCourseId, term, department, true);
+                    String dropAgain = dropCourse(id, newCourseId, term, department, true);
                     System.out.println("REVERT UDP CALL CHANGES: " + dropAgain);
                     return "Drop unsucessfull, Changes Reverted!";
                 }
@@ -448,11 +492,11 @@ public class CourseOperations implements CourseInterface {
             if (result.equalsIgnoreCase("enrolledSuccessfully")) {
                 System.out.println("udp = " + oldCourseId.toUpperCase().startsWith(department.toUpperCase()));
                 boolean udp = !oldCourseId.toUpperCase().startsWith(department.toUpperCase());
-                boolean dropResult = dropCourse(id, oldCourseId, term, department, udp);
-                if (dropResult)
+                String dropResult = dropCourse(id, oldCourseId, term, department, udp);
+                if (dropResult.equalsIgnoreCase("true"))
                     return "Course Swapped Sucessfully!";
                 else {
-                    boolean dropAgain = dropCourse(id, newCourseId, term, department, false);
+                    String dropAgain = dropCourse(id, newCourseId, term, department, false);
                     System.out.println("REVERT CHANGES: " + dropAgain);
                     return "Reverted changes, dropped the new enrolled course";
                 }
@@ -489,7 +533,7 @@ public class CourseOperations implements CourseInterface {
         }
     }
 
-    synchronized boolean udpDropCourse(String studentID, String courseID, String term) {
+    synchronized String udpDropCourse(String studentID, String courseID, String term) {
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = this.courseDetails.get(term);
             if (termMap.containsKey(courseID)) {
@@ -497,10 +541,10 @@ public class CourseOperations implements CourseInterface {
                 ArrayList<String> studentIDlist = courseDataDetails.getEnrolledStudents();
                 studentIDlist.remove(studentID);
                 courseDataDetails.setEnrolledStudents(studentIDlist);
-                return true;
+                return "true";
             }
         }
-        return false;
+        return "false";
     }
 
     HashMap<String, Integer> udpListCourseAvailability(String term) {

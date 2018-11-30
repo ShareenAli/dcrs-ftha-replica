@@ -25,9 +25,7 @@ public class UdpOperations implements Serializable, Runnable {
 
     public void run() {
         String message;
-        boolean dropmessage;
-
-        byte[] outgoingMessage = new byte[1000];
+        byte[] outgoingMessage;
         try {
 
             UdpPacket udpPacket = (UdpPacket) deserialize(this.packet.getData());
@@ -41,9 +39,9 @@ public class UdpOperations implements Serializable, Runnable {
                     outgoingMessage = serialize(message);
                     break;
                 case 2:
-                    dropmessage = courseOperations.udpDropCourse(udpBody.getStudentID(), udpBody.getCourseID(), udpBody.getTerm());
-                    System.out.println("Response from udpDropcourse" + dropmessage);
-                    outgoingMessage = serialize(dropmessage);
+                    message = courseOperations.udpDropCourse(udpBody.getStudentID(), udpBody.getCourseID(), udpBody.getTerm());
+                    System.out.println("Response from udpDropcourse" + message);
+                    outgoingMessage = serialize(message);
                     break;
                 case 3:
                     courses = courseOperations.udpListCourseAvailability(udpBody.getTerm());

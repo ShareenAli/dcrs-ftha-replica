@@ -21,10 +21,10 @@ public class CompServer {
         }
 
         CourseOperations courseOperations = new CourseOperations();
-        courseOperations.initializeValues("COMP", "comp server");
+        courseOperations.initializeValues("COMP", logs);
 
-        WsThread wsThread = new WsThread(courseOperations, "http://localhost:8200/ws/compserver");
-        wsThread.start();
+        UDPServerThread UDPServerThread = new UDPServerThread(courseOperations, 8004, "COMP", logs);
+        UDPServerThread.start();
 
         try {
             DatagramSocket socket = new DatagramSocket(8001);
@@ -33,7 +33,7 @@ public class CompServer {
 
             while (true) {
                 DatagramPacket request = new DatagramPacket(buffer, buffer.length);
-                System.out.println("UDP server running on: " + (8001));
+                System.out.println("UDP COMP server running on: " + (8001));
                 socket.receive(request);
 
                 UdpOperations udpOp = new UdpOperations(socket, request, courseOperations);

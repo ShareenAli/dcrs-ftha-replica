@@ -21,10 +21,10 @@ public class SoenServer {
         }
 
         CourseOperations courseOperations = new CourseOperations();
-        courseOperations.initializeValues("SOEN", "SOEN Server");
+        courseOperations.initializeValues("SOEN", logs);
 
-        WsThread wsThread = new WsThread(courseOperations, "http://localhost:8201/ws/soenserver");
-        wsThread.start();
+        UDPServerThread UDPServerThread = new UDPServerThread(courseOperations, 8005, "SOEN", logs);
+        UDPServerThread.start();
 
         try {
             DatagramSocket socket = new DatagramSocket(8002);
@@ -33,7 +33,7 @@ public class SoenServer {
 
             while (true) {
                 DatagramPacket request = new DatagramPacket(buffer, buffer.length);
-                System.out.println("UDP server running on: " + (8002));
+                System.out.println("UDP SOEN server running on: " + (8002));
                 socket.receive(request);
 
                 UdpOperations udpOp = new UdpOperations(socket, request, courseOperations);
