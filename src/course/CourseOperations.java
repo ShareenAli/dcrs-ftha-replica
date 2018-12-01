@@ -37,36 +37,36 @@ public class CourseOperations {
         boolean udpCall;
         switch (operationName.toLowerCase()){
             case "addcourse" :
-                result = addCourse(contents[2], contents[4], "leCourse",contents[3], Integer.parseInt(contents[5]));
+                result = addCourse(contents[3], contents[5], "leCourse",contents[4], Integer.parseInt(contents[6]));
                 break;
             case "removecourse" :
-                advisorDepartmentName = contents[2].substring(0,4);
-                result = deleteCourse(contents[2], contents[4], contents[3], advisorDepartmentName);
+                advisorDepartmentName = contents[3].substring(0,4);
+                result = deleteCourse(contents[3], contents[5], contents[4], advisorDepartmentName);
                 break;
             case "enrollcourse" :
-                studentDepartmentName = contents[2].substring(0,4);
-                courseDepartmentName = contents[4].substring(0,4);
+                studentDepartmentName = contents[3].substring(0,4);
+                courseDepartmentName = contents[5].substring(0,4);
 
                 udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
-                result  = enrollCourse(contents[2], contents[3], studentDepartmentName, contents[4], udpCall, false, true);
+                result  = enrollCourse(contents[3], contents[4], studentDepartmentName, contents[5], udpCall, false, true);
                 break;
             case  "dropcourse" :
-                studentDepartmentName = contents[2].substring(0,4);
-                courseDepartmentName = contents[4].substring(0,4);
+                studentDepartmentName = contents[3].substring(0,4);
+                courseDepartmentName = contents[5].substring(0,4);
 
                 udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
-                result = dropCourse(contents[2], contents[4], contents[3], studentDepartmentName, udpCall);
+                result = dropCourse(contents[3], contents[5], contents[4], studentDepartmentName, udpCall);
                 break;
             case "getclassschedule" :
-                result = getClassSchedule(contents[2]);
+                result = getClassSchedule(contents[3]);
                 break;
             case "listcourseavailability" :
-                advisorDepartmentName= contents[2].substring(0, 4);
-                result = listCourseAvailability(contents[2], contents[3], advisorDepartmentName);
+                advisorDepartmentName= contents[3].substring(0, 4);
+                result = listCourseAvailability(contents[3], contents[4], advisorDepartmentName);
                 break;
             case "swapcourse" :
-                studentDepartmentName = contents[2].substring(0,4);
-                result = swapCourse(contents[2], contents[4], contents[5], contents[3], studentDepartmentName);
+                studentDepartmentName = contents[3].substring(0,4);
+                result = swapCourse(contents[3], contents[5], contents[6], contents[4], studentDepartmentName);
                 break;
         }
 

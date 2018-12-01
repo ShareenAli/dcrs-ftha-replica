@@ -2,6 +2,7 @@ package server;
 
 import course.CourseOperations;
 import course.UdpOperations;
+import schema.HoldBack;
 
 import java.io.*;
 import java.net.DatagramPacket;
@@ -10,6 +11,10 @@ import java.net.InetAddress;
 import java.util.logging.Logger;
 
 public class UDPServerThread implements Runnable {
+    private HoldBack holdBack = HoldBack.getInstance();
+
+    private String ipAddress = "230.1.1.4";
+    private int fePort = 7779;
     private CourseOperations courseOperations;
     private int port;
     private String serverName;
@@ -34,23 +39,37 @@ public class UDPServerThread implements Runnable {
                 logs.info("UDP " + serverName + " server running on : " + port);
                 System.out.println("UDP " + serverName + " server running on : " + port);
                 socket.receive(request);
+
                 String content = (String) deserialize(request.getData());
                 String contents[] = content.split("-");
-                String operationName = contents[0];
 
-                String result = this.courseOperations.selectOperation(operationName, contents);
-                byte[] outgoing = serialize(result);
+                holdBack.addToQueue(Integer.parseInt(contents[0]), content);
 
-                // TODO:: change the ip address of the front end
-                String ipAddress = "";
-                int fePort = 7779;
-                DatagramPacket reply = new DatagramPacket(outgoing, outgoing.length, InetAddress.getByName(ipAddress), fePort);
-                socket.send(reply);
+                processQueue(socket);
             }
 
         } catch (Exception e) {
             System.out.println("Exception:" + e);
         }
+    }
+
+    private void processQueue(DatagramSocket socket) throws IOException {
+        if (!holdBack.isThereIsNext())
+            return;
+
+        String content = holdBack.getNextRequest();
+        String contents[] = content.split("-");
+        String operationName = contents[1];
+
+        String result = this.courseOperations.selectOperation(operationName, contents);
+        byte[] outgoing = serialize(result);
+        DatagramPacket reply = new DatagramPacket(outgoing, outgoing.length, InetAddress.getByName(ipAddress), fePort);
+        socket.send(reply);
+
+        holdBack.removeFromQueue();
+
+        holdBack.incrementLastSequence();
+        this.processQueue(socket);
     }
 
     public void start() {
