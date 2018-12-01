@@ -14,7 +14,7 @@ public class UDPServerThread implements Runnable {
     private HoldBack holdBack = HoldBack.getInstance();
 
     private String ipAddress = "230.1.1.4";
-    private int fePort = 7779;
+    private int fePort = 7777;
     private CourseOperations courseOperations;
     private int port;
     private String serverName;

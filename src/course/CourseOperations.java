@@ -37,7 +37,7 @@ public class CourseOperations {
         boolean udpCall;
         switch (operationName.toLowerCase()){
             case "addcourse" :
-                result = addCourse(contents[3], contents[5], "leCourse",contents[4], Integer.parseInt(contents[6]));
+                result = addCourse(contents[2], contents[3], contents[5], "leCourse",contents[4], Integer.parseInt(contents[6]));
                 break;
             case "removecourse" :
                 advisorDepartmentName = contents[3].substring(0,4);
@@ -90,7 +90,7 @@ public class CourseOperations {
         return "false";
     }
 
-    public String addCourse(String advisorID, String courseID, String courseName, String term, int courseCapacity) {
+    public String addCourse(String serverName, String advisorID, String courseID, String courseName, String term, int courseCapacity) {
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = courseDetails.get(term);
             if (termMap.containsKey(courseID)) {
@@ -103,7 +103,7 @@ public class CourseOperations {
                 courseDetails.put(term, termMap);
                 showCourses();
                 logs.info(advisorID + " added course " + courseID + " successfully!");
-                return "true";
+                return "replica1-" + serverName + "-course added";
             }
         } else {
             HashMap<String, CourseData> courseMap = new HashMap<>();
@@ -112,7 +112,7 @@ public class CourseOperations {
             courseDetails.put(courseData.getTerm(), courseMap);
             showCourses();
             logs.info("Term added to HashMap and course added Successfully by " + advisorID);
-            return "true";
+            return "replica1-" + serverName + "-course added";
         }
     }
 
