@@ -8,13 +8,14 @@ import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.util.logging.Logger;
 
 public class UDPServerThread implements Runnable {
     private HoldBack holdBack = HoldBack.getInstance();
 
     private String ipAddress = "230.1.1.4";
-    private int fePort = 7777;
+    private int rmPort = 5001;
     private CourseOperations courseOperations;
     private int port;
     private String serverName;
@@ -30,17 +31,19 @@ public class UDPServerThread implements Runnable {
     @Override
     public void run() {
         try {
-            DatagramSocket socket = new DatagramSocket(port);
+        	MulticastSocket socket = new MulticastSocket(port);
+//          DatagramSocket socket = new DatagramSocket(8033);
+        	socket.joinGroup(InetAddress.getByName("230.1.1.1"));
+      	
+            logs.info("Sequencer " + serverName + " server listening on : " + port);
 
             byte[] buffer = new byte[1000];
 
             while (true) {
                 DatagramPacket request = new DatagramPacket(buffer, buffer.length);
-                logs.info("UDP " + serverName + " server running on : " + port);
-                System.out.println("UDP " + serverName + " server running on : " + port);
                 socket.receive(request);
 
-                String content = (String) deserialize(request.getData());
+                String content = new String(request.getData());
                 String contents[] = content.split("-");
 
                 holdBack.addToQueue(Integer.parseInt(contents[0]), content);
@@ -60,12 +63,16 @@ public class UDPServerThread implements Runnable {
         String content = holdBack.getNextRequest();
         String contents[] = content.split("-");
         String operationName = contents[1];
+        
+        System.out.println(content);
 
         String result = this.courseOperations.selectOperation(operationName, contents);
-        byte[] outgoing = serialize(result);
-        DatagramPacket reply = new DatagramPacket(outgoing, outgoing.length, InetAddress.getByName(ipAddress), fePort);
+        byte[] outgoing = result.getBytes();
+        DatagramPacket reply = new DatagramPacket(outgoing, outgoing.length, InetAddress.getByName(ipAddress), Integer.parseInt(contents[contents.length - 1].trim()));
+        DatagramPacket rmReply = new DatagramPacket(outgoing, outgoing.length, InetAddress.getByName("localhost"), rmPort);
         socket.send(reply);
-
+        socket.send(rmReply);
+        
         holdBack.removeFromQueue();
 
         holdBack.incrementLastSequence();
@@ -75,22 +82,5 @@ public class UDPServerThread implements Runnable {
     public void start() {
         Thread thread = new Thread(this, "New Ws Thread");
         thread.start();
-    }
-
-    private static byte[] serialize(Object obj) throws IOException {
-        try (ByteArrayOutputStream b = new ByteArrayOutputStream()) {
-            try (ObjectOutputStream o = new ObjectOutputStream(b)) {
-                o.writeObject(obj);
-            }
-            return b.toByteArray();
-        }
-    }
-
-    private static Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
-        try (ByteArrayInputStream b = new ByteArrayInputStream(bytes)) {
-            try (ObjectInputStream o = new ObjectInputStream(b)) {
-                return o.readObject();
-            }
-        }
     }
 }

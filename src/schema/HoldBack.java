@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 public class HoldBack {
     private static HoldBack instance;
-    private int lastSequence = 1;
+    private int currentSequenceNumber = 1;
 
     private HashMap<Integer, String> holdBack = new HashMap<>();
 
@@ -17,11 +17,11 @@ public class HoldBack {
     }
 
     public void incrementLastSequence() {
-        lastSequence++;
+    	currentSequenceNumber++;
     }
 
     public boolean isThereIsNext() {
-        return (this.holdBack.containsKey(lastSequence));
+        return (this.holdBack.containsKey(currentSequenceNumber));
     }
 
     public void addToQueue(int sequence, String content) {
@@ -29,10 +29,10 @@ public class HoldBack {
     }
 
     public void removeFromQueue() {
-        this.holdBack.remove(lastSequence);
+        this.holdBack.remove(currentSequenceNumber);
     }
 
     public String getNextRequest() {
-        return this.holdBack.get(lastSequence);
+        return this.holdBack.get(currentSequenceNumber);
     }
 }

@@ -1,3 +1,4 @@
+
 package course;
 
 import schema.CourseData;
@@ -13,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import com.sun.org.apache.xml.internal.security.keys.keyresolver.implementations.SecretKeyResolver;
 
 public class CourseOperations {
     private Logger logs;
@@ -37,36 +40,37 @@ public class CourseOperations {
         boolean udpCall;
         switch (operationName.toLowerCase()){
             case "addcourse" :
-                result = addCourse(contents[2], contents[3], contents[5], "leCourse",contents[4], Integer.parseInt(contents[6]));
+            	System.out.println(contents[6]);
+                result = addCourse(contents[2], contents[3], contents[5], contents[5],contents[4], Integer.parseInt(contents[6].replaceAll("[^0-9]", "")));
                 break;
             case "removecourse" :
                 advisorDepartmentName = contents[3].substring(0,4);
-                result = deleteCourse(contents[3], contents[5], contents[4], advisorDepartmentName);
+                result = deleteCourse(contents[2], contents[3], contents[5].trim(), contents[4], advisorDepartmentName);
                 break;
-            case "enrollcourse" :
+            case "enrolcourse" :
                 studentDepartmentName = contents[3].substring(0,4);
                 courseDepartmentName = contents[5].substring(0,4);
 
                 udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
-                result  = enrollCourse(contents[3], contents[4], studentDepartmentName, contents[5], udpCall, false, true);
+                result  = enrollCourse(contents[2], contents[3], contents[4], studentDepartmentName, String.valueOf(contents[5].trim()), udpCall, false, true);
                 break;
             case  "dropcourse" :
                 studentDepartmentName = contents[3].substring(0,4);
                 courseDepartmentName = contents[5].substring(0,4);
 
                 udpCall = !studentDepartmentName.equalsIgnoreCase(courseDepartmentName);
-                result = dropCourse(contents[3], contents[5], contents[4], studentDepartmentName, udpCall);
+                result = dropCourse(contents[2], contents[3], contents[5].trim(), contents[4], studentDepartmentName, udpCall);
                 break;
-            case "getclassschedule" :
-                result = getClassSchedule(contents[3]);
+            case "classsche" :
+                result = getClassSchedule(contents[2], contents[3].trim());
                 break;
-            case "listcourseavailability" :
+            case "courseavl" :
                 advisorDepartmentName= contents[3].substring(0, 4);
-                result = listCourseAvailability(contents[3], contents[4], advisorDepartmentName);
+                result = listCourseAvailability(contents[2], contents[3], contents[4].trim(), advisorDepartmentName);
                 break;
             case "swapcourse" :
                 studentDepartmentName = contents[3].substring(0,4);
-                result = swapCourse(contents[3], contents[5], contents[6], contents[4], studentDepartmentName);
+                result = swapCourse(contents[2], contents[3], contents[5], contents[6].trim(), contents[4], studentDepartmentName);
                 break;
         }
 
@@ -91,12 +95,16 @@ public class CourseOperations {
     }
 
     public String addCourse(String serverName, String advisorID, String courseID, String courseName, String term, int courseCapacity) {
+    	if(!serverName.equalsIgnoreCase(courseID.substring(0,4))) {
+    		System.out.println(advisorID + " can add courses only of pattern " + serverName.toUpperCase() + "####.");
+    		return "replica1-" + serverName + "-no course added";
+    	} 
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = courseDetails.get(term);
             if (termMap.containsKey(courseID)) {
                 logs.warning("This course ID already exists for this term. Please try again!");
                 System.out.println("This course ID already exists for this term. Please try again!");
-                return "false";
+                return "replica1-" + serverName + "-no course added";
             } else {
                 CourseData newCourseData = new CourseData(courseID, courseName, term, courseCapacity);
                 termMap.put(courseID, newCourseData);
@@ -111,6 +119,7 @@ public class CourseOperations {
             courseMap.put(courseData.getCourse_id(), courseData);
             courseDetails.put(courseData.getTerm(), courseMap);
             showCourses();
+            System.out.println(courseData.getTerm() + " term. " + courseData.getCourse_id());
             logs.info("Term added to HashMap and course added Successfully by " + advisorID);
             return "replica1-" + serverName + "-course added";
         }
@@ -137,7 +146,7 @@ public class CourseOperations {
         }
     }
 
-    public String deleteCourse(String advisorID, String courseId, String term, String department) {
+    public String deleteCourse(String serverName, String advisorID, String courseId, String term, String department) {
         int[] ports = new int[2];
         if (courseDetails.containsKey(term)) {
             HashMap<String, CourseData> termMap = this.courseDetails.get(term);
@@ -183,30 +192,29 @@ public class CourseOperations {
                 System.out.println("RESPONSE2: " + responseObj2);
                 if (responseObj == "true" && responseObj2 == "true"){
                     logs.info(advisorID + " has deleted " + courseId + "course successfully!");
-                    return "true";
+                    return "replica1-" + serverName + "-course removed";
                 } else {
-                    return "false";
+                    return "replica1-" + serverName + "-no course removed";
                 }
             } else {
                 logs.warning("There is no course with " + courseId + " CourseData ID.");
                 System.out.println("There is no course with " + courseId + " CourseData ID.");
-                return "false";
+                return "replica1-" + serverName + "-no course removed";
             }
         } else {
             logs.warning("Please enter valid term name. Try Again!");
             System.out.println("Please enter valid term name. Try Again!");
         }
-        return "false";
+        return "replica1-" + serverName + "-no course removed";
     }
 
-    synchronized public String enrollCourse(String id, String term, String department, String courseId, boolean udpCall, boolean swapOperation, boolean checkCrossEnrollLimit) {
+    synchronized public String enrollCourse(String serverName, String id, String term, String department, String courseId, boolean udpCall, boolean swapOperation, boolean checkCrossEnrollLimit) {
         HashMap<String, CourseData> termMap = courseDetails.get(term);
         HashMap<String, List<String>> studentCourseDetails = studentTermWiseDetails.get(id);
         int port, enrollLimit = 0;
 
         if (udpCall) {
             logs.info("UDP details : " + "\n" + id + "\n" + term + "\n" + department + "\n" + courseId);
-            System.out.println("UDP details : " + "\n" + id + "\n" + term + "\n" + department + "\n" + courseId);
 
             if (studentCourseDetails.containsKey(term)) {
                 List<String> courses = studentCourseDetails.get(term);
@@ -221,13 +229,13 @@ public class CourseOperations {
                         }
                     }
                     if (enrollLimit == 2 && checkCrossEnrollLimit) {
-                        return "deptLimit";
+                        return "replica1-" + serverName + "-dept limit is full";
                     }
                     if (courses.size() == 3 && !swapOperation) {
-                        return "limit";
+                        return "replica1-" + serverName + "-capacity for this term is full";
                     }
                     if (courses.contains(courseId)) {
-                        return "enrolledAlready";
+                        return "replica1-" + serverName + "-no success";
                     }
                 }
             }
@@ -257,24 +265,27 @@ public class CourseOperations {
                     studentTermWiseDetails.put(id, studentCourseDetails);
                 }
                 displayStudentDetails();
-                return "enrolledSuccessfully";
+                return "replica1-" + serverName + "-enroll success";
             } else {
                 return responseObj;
             }
         } else {
             if (courseDetails.containsKey(term)) {
-                CourseData course = termMap.get(courseId);
+                CourseData course = termMap.get(courseId.toString());
                 if (course != null) {
                     List<String> courses = studentCourseDetails.get(term);
                     if (course.courseAvailability()) {
-                        return "courseFull";
+                    	System.out.println("replica1-" + serverName + "-course capacity is full");
+                        return "replica1-" + serverName + "-course capacity is full";
                     }
                     if (studentCourseDetails.containsKey(term)) {
                         if (courses.size() == 3 && !swapOperation) {
-                            return "limit";
+                        	System.out.println("replica1-" + serverName + "-capacity for this term is full");
+                        	return "replica1-" + serverName + "-capacity for this term is full";
                         }
                         if (courses.contains(courseId)) {
-                            return "enrolledAlready";
+                        	System.out.println("replica1-" + serverName + "-no success");
+                        	return "replica1-" + serverName + "-no success";
                         }
                     }
                     course.setEnrolledStudents(id);
@@ -291,12 +302,14 @@ public class CourseOperations {
                         studentTermWiseDetails.put(id, studentCourseDetails);
                     }
                     displayStudentDetails();
-                    return "enrolledSuccessfully";
+                    System.out.println("replica1-" + serverName + "-enroll success");
+                    return "replica1-" + serverName + "-enroll success";
                 } else {
-                    return "courseNotFound";
+                	System.out.println("replica1-" + serverName + "-there is no such course in the database");
+                    return "replica1-" + serverName + "-there is no such course in the database";
                 }
             }
-            return "termNotFound";
+            return "replica1-" + serverName + "-no success";
         }
     }
 
@@ -310,7 +323,7 @@ public class CourseOperations {
         return message;
     }
 
-    public String dropCourse(String studentId, String courseId, String term, String department, boolean udpCall) {
+    public String dropCourse(String serverName, String studentId, String courseId, String term, String department, boolean udpCall) {
         int port;
         if (udpCall) {
             System.out.println("dropCourse = " + courseId);
@@ -327,9 +340,9 @@ public class CourseOperations {
                 UdpPacket udpPacket = new UdpPacket(2, udpBody);
                 System.out.println("Check in enroll method");
                 System.out.println(udpPacket.getOperation());
-                boolean responseObj = (boolean) udpPacketInfo(udpPacket, port);
+                String responseObj = (String) udpPacketInfo(udpPacket, port);
 
-                if (responseObj) {
+                if (responseObj.equalsIgnoreCase("true")) {
                     HashMap<String, List<String>> studentTermCourseDetails = this.studentTermWiseDetails.get(studentId);
                     List<String> course = studentTermCourseDetails.get(term);
                     boolean result = course.remove(courseId);
@@ -338,13 +351,13 @@ public class CourseOperations {
                         studentTermWiseDetails.put(studentId, studentTermCourseDetails);
                         System.out.println(courseId + " course has been dropped by " + studentId + " student for " + term + " term.");
                         displayStudentDetails();
-                        return "true";
+                        return "replica1-" + serverName + "-drop success";
                     } else {
                         System.out.println("Couldn't find the course");
-                        return "false";
+                        return "replica1-" + serverName + "-there is no such course in the database";
                     }
                 } else {
-                    return "false";
+                    return "replica1-" + serverName + "-there is no such course in the database";
                 }
             } else {
                 System.out.println("Course can only be of the pattern COMP####/SOEN####/INSE####.");
@@ -366,10 +379,10 @@ public class CourseOperations {
                         studentTermWiseDetails.put(studentId, studentTermCourseDetails);
                         System.out.println(courseId + " course has been dropped by " + studentId + " student for " + term + " term.");
                         displayStudentDetails();
-                        return "true";
+                        return "replica1-" + serverName + "-drop success";
                     } else {
                         System.out.println("Couldn't find the course");
-                        return "false";
+                        return "replica1-" + serverName + "-there is no such course in the database";
                     }
                 } else {
                     System.out.println("There is no course with " + courseId + " CourseData ID.");
@@ -379,24 +392,23 @@ public class CourseOperations {
                 System.out.println("Please enter valid term name. Try Again!");
             }
         }
-        return "false";
+        return "replica1-" + serverName + "-there is no such course in the database";
     }
 
-    public String getClassSchedule(String studentId) {
-        String message = "";
+    public String getClassSchedule(String serverName, String studentId) {
+        String message = "replica1-" + serverName + "-Schedule ";
         HashMap<String, List<String>> studentTermCourseDetails = this.studentTermWiseDetails.get(studentId);
         for (Map.Entry<String, List<String>> studentClassSchedule : studentTermCourseDetails.entrySet()) {
             List<String> courseList = studentClassSchedule.getValue();
-            message = message.concat("For term : " + studentClassSchedule.getKey() + " :-");
             for (String course : courseList) {
-                message = message.concat("\n -> CourseData ID : " + course);
+                message = message.concat(" " + course + " " + studentClassSchedule.getKey());
             }
         }
         return message;
     }
 
     @SuppressWarnings("unchecked")
-    public String listCourseAvailability(String id, String term, String department) {
+    public String listCourseAvailability(String serverName, String id, String term, String department) {
         HashMap<String, Integer> listCourse = new HashMap<>();
         System.out.println(term);
         HashMap<String, CourseData> termMap = courseDetails.get(term);
@@ -441,15 +453,15 @@ public class CourseOperations {
                 System.out.println("COURSEID: " + courseData.getCourse_id() + "SPACE: " + space);
                 listCourse.put(courseData.getCourse_id(), space);
             }
-            return this.listCourseAvailabilityString(listCourse, term);
+            return "replica1-" + serverName + "-" + this.listCourseAvailabilityString(listCourse, term);
         }
 
         System.out.println(listCourse.size());
 
-        return this.listCourseAvailabilityString(listCourse, term);
+        return "replica1-" + serverName + "-" + this.listCourseAvailabilityString(listCourse, term);
     }
 
-    public String swapCourse(String id, String oldCourseId, String newCourseId, String term, String department) {
+    public String swapCourse(String serverName, String id, String oldCourseId, String newCourseId, String term, String department) {
         System.out.println("Swapping course");
         String newCourseIdDept = newCourseId.substring(0, 4);
         String oldCourseIdDept = oldCourseId.substring(0, 4);
@@ -466,50 +478,50 @@ public class CourseOperations {
             crossEnrollLimitCheck = true;
 
         if (udpCall) {
-            result = enrollCourse(id, term, department, newCourseId, true, true, crossEnrollLimitCheck);
+            result = enrollCourse(serverName, id, term, department, newCourseId, true, true, crossEnrollLimitCheck);
             System.out.println("RESULT FROM ENROLL(SWAP): " + result);
 
-            if (result.equalsIgnoreCase("enrolledSuccessfully")) {
+            if (result.equalsIgnoreCase("replica1-" + serverName + "-enroll success")) {
                 boolean udp = !oldCourseId.toUpperCase().startsWith(department.toUpperCase());
-                String dropCourseResult = dropCourse(id, oldCourseId, term, department,udp);
-                if (dropCourseResult.equalsIgnoreCase("true"))
-                    return "Course Swapped Successfully";
+                String dropCourseResult = dropCourse(serverName, id, oldCourseId, term, department,udp);
+                if (dropCourseResult.equalsIgnoreCase("replica1-" + serverName + "-drop success"))
+                    return "replica1-" + serverName + "-the course swap is success";
                 else {
-                    String dropAgain = dropCourse(id, newCourseId, term, department, true);
+                    String dropAgain = dropCourse(serverName, id, newCourseId, term, department, true);
                     System.out.println("REVERT UDP CALL CHANGES: " + dropAgain);
-                    return "Drop unsucessfull, Changes Reverted!";
+                    return "replica1-" + serverName + "-course swap is unsuccess";
                 }
-            } else if (result.equalsIgnoreCase("deptLimit"))
-                return "You cannot Enroll for more than 2 courses from other department!";
-            else if (result.equalsIgnoreCase("enrolledAlready"))
-                return "You have already enrolled for the course!";
-            else if (result.equalsIgnoreCase("courseFull"))
-                return "The course is already Full!";
-            else if (result.equalsIgnoreCase("courseNotFound"))
-                return "Course not found for this term";
+            } else if (result.equalsIgnoreCase("replica1-" + serverName + "-dept limit is full"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-no success"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-course capacity is full"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-there is no such course in the database"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
         } else {
-            result = enrollCourse(id, term, department, newCourseId, false, true, crossEnrollLimitCheck);
-            if (result.equalsIgnoreCase("enrolledSuccessfully")) {
+            result = enrollCourse(serverName, id, term, department, newCourseId, false, true, crossEnrollLimitCheck);
+            if (result.equalsIgnoreCase("replica1-" + serverName + "-enroll success")) {
                 System.out.println("udp = " + oldCourseId.toUpperCase().startsWith(department.toUpperCase()));
                 boolean udp = !oldCourseId.toUpperCase().startsWith(department.toUpperCase());
-                String dropResult = dropCourse(id, oldCourseId, term, department, udp);
-                if (dropResult.equalsIgnoreCase("true"))
-                    return "Course Swapped Sucessfully!";
+                String dropResult = dropCourse(serverName, id, oldCourseId, term, department, udp);
+                if (dropResult.equalsIgnoreCase("replica1-" + serverName + "-drop success"))
+                    return "replica1-" + serverName + "-the course swap is success";
                 else {
-                    String dropAgain = dropCourse(id, newCourseId, term, department, false);
+                    String dropAgain = dropCourse(serverName, id, newCourseId, term, department, false);
                     System.out.println("REVERT CHANGES: " + dropAgain);
-                    return "Reverted changes, dropped the new enrolled course";
+                    return "replica1-" + serverName + "-course swap is unsuccess";
                 }
-            } else if (result.equalsIgnoreCase("deptLimit"))
-                return "You cannot Enroll for more than 2 courses from other department!";
-            else if (result.equalsIgnoreCase("enrolledAlready"))
-                return "You have already enrolled for the course!";
-            else if (result.equalsIgnoreCase("courseFull"))
-                return "The course is already Full!";
-            else if (result.equalsIgnoreCase("courseNotFound"))
-                return "Course not found for this term";
+            } else if (result.equalsIgnoreCase("replica1-" + serverName + "-dept limit is full"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-no success"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-course capacity is full"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
+            else if (result.equalsIgnoreCase("replica1-" + serverName + "-there is no such course in the database"))
+                return "replica1-" + serverName + "-course swap is unsuccess";
         }
-        return "Server Error";
+        return "replica1-" + serverName + "-course swap is unsuccess";
     }
 
     synchronized String udpEnrollCourse(String id, String term, String department, String course_id) {
@@ -568,10 +580,10 @@ public class CourseOperations {
             for (Map.Entry<String, Integer> coursesList : courses.entrySet()) {
                 String courseID = coursesList.getKey();
                 Integer courseDetails = coursesList.getValue();
-                message = message.concat("\n -> CourseData ID : " + courseID + "\n Space available: " + courseDetails);
+                message = message.concat(courseID + " " + courseDetails + " ");
             }
         } else
-            message = message.concat("There are no courses for " + term + " term.");
+            message = message.concat(" ");
         return message;
     }
 
